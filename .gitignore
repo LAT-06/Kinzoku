@@ -1,3 +1,8 @@
 .env
 AGENTS.md
 .agents
+node_modules
+dist
+coverage
+.vite
+*.log

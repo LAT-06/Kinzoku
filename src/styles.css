@@ -1,0 +1,268 @@
+:root {
+  color-scheme: dark;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  --bg: #0c0f13;
+  --surface: #111418;
+  --surface-strong: #171c23;
+  --border: #29313c;
+  --border-strong: #3a4654;
+  --text: #eef2f6;
+  --muted: #8e9aaa;
+  --accent: #d6a23a;
+  --accent-2: #23a6a6;
+  --danger: #e85d64;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+button,
+select {
+  font: inherit;
+}
+
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem clamp(1rem, 3vw, 2rem);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.brand-mark {
+  width: 2.25rem;
+  height: 2.25rem;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 1px solid color-mix(in srgb, var(--accent), transparent 35%);
+  border-radius: 8px;
+  color: var(--accent);
+  background: #17130b;
+  font-weight: 800;
+}
+
+.brand h1,
+.brand p,
+.chart-heading h2,
+.chart-heading p,
+.market-meta {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+.brand h1 {
+  font-size: clamp(1.1rem, 2vw, 1.35rem);
+  line-height: 1.1;
+}
+
+.brand p,
+.chart-heading p,
+.market-meta dt {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.control-field {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 9.5rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.control-field select {
+  width: 100%;
+  min-height: 2.4rem;
+  padding: 0 2rem 0 0.75rem;
+  color: var(--text);
+  background: var(--surface-strong);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+}
+
+.control-field select:focus {
+  outline: 2px solid color-mix(in srgb, var(--accent-2), transparent 35%);
+  outline-offset: 2px;
+}
+
+.app-main {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.chart-section {
+  width: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem clamp(1rem, 3vw, 2rem) 1.25rem;
+  min-height: 0;
+}
+
+.chart-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.chart-heading h2 {
+  margin-top: 0.2rem;
+  font-size: clamp(1.5rem, 3vw, 2.35rem);
+  line-height: 1;
+}
+
+.market-meta {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  text-align: right;
+}
+
+.market-meta div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.market-meta dd {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--text);
+}
+
+.chart-shell {
+  position: relative;
+  flex: 1;
+  min-height: 24rem;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.chart-canvas {
+  width: 100%;
+  min-height: 24rem;
+  height: min(68vh, 45rem);
+}
+
+.chart-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--surface), transparent 12%);
+  font-size: 0.95rem;
+}
+
+.chart-overlay-error {
+  color: #ffd1d4;
+}
+
+.chart-status {
+  position: absolute;
+  left: 0.85rem;
+  bottom: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 1.85rem;
+  padding: 0 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--surface-strong), transparent 8%);
+  font-size: 0.8rem;
+}
+
+.status-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--muted);
+}
+
+.chart-status[data-status='open'] .status-dot {
+  background: var(--accent-2);
+}
+
+.chart-status[data-status='error'] .status-dot {
+  background: var(--danger);
+}
+
+.chart-status[data-status='connecting'] .status-dot,
+.chart-status[data-status='reconnecting'] .status-dot {
+  background: var(--accent);
+}
+
+@media (max-width: 720px) {
+  .topbar,
+  .chart-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .controls,
+  .market-meta {
+    width: 100%;
+  }
+
+  .control-field {
+    min-width: min(100%, 10rem);
+    flex: 1;
+  }
+
+  .market-meta {
+    justify-content: space-between;
+    text-align: left;
+  }
+
+  .chart-canvas {
+    height: calc(100vh - 17rem);
+    min-height: 22rem;
+  }
+}
