@@ -9,7 +9,7 @@ import {
 describe('market news context', () => {
   it('builds GDELT URLs for recent article lists', () => {
     expect(buildGdeltNewsUrl('(bitcoin OR BTC)', 5, '6h')).toBe(
-      'https://api.gdeltproject.org/api/v2/doc/doc?query=%28bitcoin+OR+BTC%29&mode=artlist&format=json&sort=datedesc&maxrecords=5&timespan=6h',
+      '/api/gdelt/api/v2/doc/doc?query=%28bitcoin+OR+BTC%29&mode=artlist&format=json&sort=datedesc&maxrecords=5&timespan=6h',
     );
   });
 

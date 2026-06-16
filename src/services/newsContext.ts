@@ -1,8 +1,11 @@
 import type { MarketSymbol } from './binanceFutures';
 
-const GDELT_DOC_API_URL = 'https://api.gdeltproject.org/api/v2/doc/doc';
+const GDELT_DOC_API_URL = '/api/gdelt/api/v2/doc/doc';
 const DEFAULT_NEWS_MAX_RECORDS = 8;
 const DEFAULT_NEWS_TIMESPAN = '12h';
+const NEWS_CACHE_TTL_MS = 10 * 60 * 1000;
+
+const newsContextCache = new Map<string, { expiresAt: number; context: MarketNewsContext }>();
 
 export interface MarketNewsArticle {
   title: string;
@@ -48,6 +51,12 @@ export async function fetchMarketNewsContext(
   const query = marketNewsQuery(symbol);
   const fetchedAt = new Date().toISOString();
   const fetcher = options.fetcher ?? fetch;
+  const cacheKey = `${symbol}:${options.maxRecords ?? DEFAULT_NEWS_MAX_RECORDS}:${options.timespan ?? DEFAULT_NEWS_TIMESPAN}`;
+  const cachedContext = options.fetcher ? undefined : newsContextCache.get(cacheKey);
+
+  if (cachedContext && cachedContext.expiresAt > Date.now()) {
+    return cachedContext.context;
+  }
 
   try {
     const response = await fetcher(
@@ -55,26 +64,34 @@ export async function fetchMarketNewsContext(
     );
 
     if (!response.ok) {
-      return unavailableNewsContext(symbol, query, `GDELT returned HTTP ${response.status}`, fetchedAt);
+      return cacheNewsContext(
+        cacheKey,
+        unavailableNewsContext(symbol, query, `GDELT returned HTTP ${response.status}`, fetchedAt),
+        options.fetcher,
+      );
     }
 
     const payload = (await response.json()) as GdeltResponse;
     const articles = (payload.articles ?? []).flatMap(normalizeGdeltArticle);
 
-    return {
+    return cacheNewsContext(cacheKey, {
       symbol,
       query,
       articles,
       fetchedAt,
       status: articles.length > 0 ? 'available' : 'unavailable',
       error: articles.length > 0 ? undefined : 'No relevant recent news found.',
-    };
+    }, options.fetcher);
   } catch (error) {
-    return unavailableNewsContext(
-      symbol,
-      query,
-      error instanceof Error ? error.message : 'News fetch failed.',
-      fetchedAt,
+    return cacheNewsContext(
+      cacheKey,
+      unavailableNewsContext(
+        symbol,
+        query,
+        error instanceof Error ? error.message : 'News fetch failed.',
+        fetchedAt,
+      ),
+      options.fetcher,
     );
   }
 }
@@ -144,6 +161,21 @@ function unavailableNewsContext(
     status: 'unavailable',
     error,
   };
+}
+
+function cacheNewsContext(
+  cacheKey: string,
+  context: MarketNewsContext,
+  skipCache: typeof fetch | undefined,
+): MarketNewsContext {
+  if (!skipCache) {
+    newsContextCache.set(cacheKey, {
+      expiresAt: Date.now() + NEWS_CACHE_TTL_MS,
+      context,
+    });
+  }
+
+  return context;
 }
 
 function articleDomain(url: string): string {

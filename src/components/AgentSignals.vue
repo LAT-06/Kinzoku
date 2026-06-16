@@ -12,6 +12,7 @@ import {
   buildSignalCandidate,
   createUnavailableSignal,
   validateSignalWithOllama,
+  type AgentValidation,
   type AgentSignal,
   type AgentSignalStatus,
   type PaperTradeSettlement,
@@ -116,6 +117,10 @@ async function loadSignalForSymbol(symbol: MarketSymbol): Promise<AgentSignal> {
   try {
     const candles = await fetchFuturesKlines(symbol, props.interval, SIGNAL_CANDLE_LIMIT);
     const candidate = buildSignalCandidate(candles, symbol, props.interval);
+    if (symbol !== props.selectedSymbol) {
+      return buildAgentSignal(candidate, ruleOnlyValidation());
+    }
+
     const newsContext = await fetchMarketNewsContext(symbol);
     const validation = await validateSignalWithOllama(candidate, { newsContext });
 
@@ -128,6 +133,15 @@ async function loadSignalForSymbol(symbol: MarketSymbol): Promise<AgentSignal> {
 
 function selectSymbol(symbol: MarketSymbol) {
   emit('selectSymbol', symbol);
+}
+
+function ruleOnlyValidation(): AgentValidation {
+  return {
+    decision: 'review',
+    summary: 'Rule-only watchlist preview.',
+    riskNotes: ['LLM and news validation runs for the selected symbol only.'],
+    source: 'fallback',
+  };
 }
 
 function acceptSelectedSignal() {
@@ -217,6 +231,13 @@ onMounted(() => {
 
 watch(
   () => props.interval,
+  () => {
+    void refreshSignals();
+  },
+);
+
+watch(
+  () => props.selectedSymbol,
   () => {
     void refreshSignals();
   },

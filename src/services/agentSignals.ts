@@ -14,9 +14,12 @@ const ATR_STOP_MULTIPLIER = 1.5;
 const RISK_REWARD = 2;
 const MIN_SIGNAL_CANDLES = 220;
 const LIQUIDITY_LOOKBACK = 8;
-const DEFAULT_OLLAMA_BASE_URL = 'http://127.0.0.1:11434';
+const DEFAULT_OLLAMA_BASE_URL = '/api/ollama';
 const DEFAULT_OLLAMA_MODEL = 'qwen2.5:7b';
 const OLLAMA_TIMEOUT_MS = 8_000;
+const OLLAMA_FAILURE_BACKOFF_MS = 5 * 60 * 1000;
+
+let ollamaBackoffUntil = 0;
 
 export type SignalDirection = 'LONG' | 'SHORT' | 'FLAT';
 export type AgentValidationDecision = 'confirm' | 'review' | 'veto';
@@ -238,6 +241,15 @@ export async function validateSignalWithOllama(
   options: OllamaValidationOptions = {},
 ): Promise<AgentValidation> {
   const fetcher = options.fetcher ?? fetch;
+  const canUseBackoff = options.fetcher === undefined;
+
+  if (canUseBackoff && Date.now() < ollamaBackoffUntil) {
+    return withNewsContext(
+      fallbackValidation('Ollama validation paused after a recent connection failure.'),
+      options.newsContext,
+    );
+  }
+
   const baseUrl = (options.baseUrl ?? getEnvValue('VITE_OLLAMA_BASE_URL') ?? DEFAULT_OLLAMA_BASE_URL).replace(
     /\/$/,
     '',
@@ -260,7 +272,14 @@ export async function validateSignalWithOllama(
     });
 
     if (!response.ok) {
-      return fallbackValidation(`Ollama returned HTTP ${response.status}.`);
+      if (canUseBackoff && response.status >= 500) {
+        ollamaBackoffUntil = Date.now() + OLLAMA_FAILURE_BACKOFF_MS;
+      }
+
+      return withNewsContext(
+        fallbackValidation(`Ollama returned HTTP ${response.status}.`),
+        options.newsContext,
+      );
     }
 
     const payload = (await response.json()) as { response?: unknown };
@@ -274,6 +293,10 @@ export async function validateSignalWithOllama(
       options.newsContext,
     );
   } catch (error) {
+    if (canUseBackoff) {
+      ollamaBackoffUntil = Date.now() + OLLAMA_FAILURE_BACKOFF_MS;
+    }
+
     return withNewsContext(
       fallbackValidation(error instanceof Error ? error.message : 'Ollama validation failed.'),
       options.newsContext,
