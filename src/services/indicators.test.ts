@@ -3,6 +3,7 @@ import type { UTCTimestamp } from 'lightweight-charts';
 
 import type { MarketCandle } from './binanceFutures';
 import {
+  calculateAtr,
   calculateBollingerBands,
   calculateEma,
   calculateLiquiditySweeps,
@@ -70,6 +71,21 @@ describe('technical indicators', () => {
       { time: 1, value: 100, color: '#16a085' },
       { time: 2, value: 120, color: '#e85d64' },
     ]);
+  });
+
+  it('calculates ATR with Wilder smoothing', () => {
+    const atr = calculateAtr(
+      [
+        { time: 1 as UTCTimestamp, open: 10, high: 12, low: 9, close: 11, volume: 100 },
+        { time: 2 as UTCTimestamp, open: 11, high: 13, low: 10, close: 12, volume: 100 },
+        { time: 3 as UTCTimestamp, open: 12, high: 15, low: 11, close: 14, volume: 100 },
+        { time: 4 as UTCTimestamp, open: 14, high: 16, low: 13, close: 15, volume: 100 },
+      ],
+      3,
+    );
+
+    expect(atr[2]).toBeCloseTo(10 / 3, 6);
+    expect(atr[3]).toBeCloseTo(29 / 9, 6);
   });
 
   it('marks bearish liquidity sweeps above confirmed swing highs', () => {

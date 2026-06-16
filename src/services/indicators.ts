@@ -272,7 +272,7 @@ function average(values: number[]): number {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
-function calculateAtr(candles: MarketCandle[], period: number): number[] {
+export function calculateAtr(candles: MarketCandle[], period: number): number[] {
   const trueRanges = candles.map((candle, index) => {
     if (index === 0) {
       return candle.high - candle.low;

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
 
+import AgentSignals from './components/AgentSignals.vue';
 import FuturesChart from './components/FuturesChart.vue';
 import {
   KLINE_INTERVALS,
@@ -14,6 +15,11 @@ import {
   type IndicatorId,
   type IndicatorVisibility,
 } from './services/indicators';
+import {
+  createManualSettlement,
+  type AgentSignal,
+  type PaperTradeSettlement,
+} from './services/agentSignals';
 
 const INDICATOR_VISIBILITY_STORAGE_KEY = 'kinzoku.indicatorVisibility';
 
@@ -64,6 +70,8 @@ function saveIndicatorVisibility(visibility: IndicatorVisibility) {
 const selectedSymbol = ref<MarketSymbol>('BTCUSDT');
 const selectedInterval = ref<KlineInterval>('1m');
 const enabledIndicators = reactive<IndicatorVisibility>(loadIndicatorVisibility());
+const activePaperSignal = ref<AgentSignal | null>(null);
+const lastPaperSettlement = ref<PaperTradeSettlement | null>(null);
 
 const selectedMarketName = computed(() => {
   if (selectedSymbol.value === 'XAUUSDT') {
@@ -88,6 +96,39 @@ function handleIntervalChange(event: Event) {
 function handleIndicatorChange(indicator: IndicatorId, event: Event) {
   enabledIndicators[indicator] = (event.target as HTMLInputElement).checked;
 }
+
+function handleAgentSymbolSelect(symbol: MarketSymbol) {
+  selectedSymbol.value = symbol;
+}
+
+function handleAcceptSignal(signal: AgentSignal) {
+  activePaperSignal.value = signal;
+  lastPaperSettlement.value = null;
+  selectedSymbol.value = signal.symbol;
+}
+
+function handlePaperTradeSettled(settlement: PaperTradeSettlement) {
+  lastPaperSettlement.value = settlement;
+  activePaperSignal.value = null;
+}
+
+function handleCloseActiveSignal() {
+  if (!activePaperSignal.value) {
+    return;
+  }
+
+  const settlement = createManualSettlement(activePaperSignal.value);
+
+  if (settlement) {
+    lastPaperSettlement.value = settlement;
+  }
+
+  activePaperSignal.value = null;
+}
+
+watch(selectedInterval, () => {
+  activePaperSignal.value = null;
+});
 
 watch(
   enabledIndicators,
@@ -174,6 +215,18 @@ watch(
           :symbol="selectedSymbol"
           :interval="selectedInterval"
           :enabled-indicators="enabledIndicators"
+          :active-signal="activePaperSignal"
+          @paper-trade-settled="handlePaperTradeSettled"
+        />
+
+        <AgentSignals
+          :selected-symbol="selectedSymbol"
+          :interval="selectedInterval"
+          :active-signal="activePaperSignal"
+          :last-settlement="lastPaperSettlement"
+          @select-symbol="handleAgentSymbolSelect"
+          @accept-signal="handleAcceptSignal"
+          @close-active-signal="handleCloseActiveSignal"
         />
       </section>
     </main>
