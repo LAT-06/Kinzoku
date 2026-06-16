@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 
+import AgentSignals from './components/AgentSignals.vue';
 import FuturesChart from './components/FuturesChart.vue';
 import {
   KLINE_INTERVALS,
@@ -8,9 +9,69 @@ import {
   type KlineInterval,
   type MarketSymbol,
 } from './services/binanceFutures';
+import {
+  DEFAULT_INDICATOR_VISIBILITY,
+  INDICATOR_OPTIONS,
+  type IndicatorId,
+  type IndicatorVisibility,
+} from './services/indicators';
+import {
+  createManualSettlement,
+  type AgentSignal,
+  type PaperTradeSettlement,
+} from './services/agentSignals';
+
+const INDICATOR_VISIBILITY_STORAGE_KEY = 'kinzoku.indicatorVisibility';
+
+function loadIndicatorVisibility(): IndicatorVisibility {
+  const visibility = { ...DEFAULT_INDICATOR_VISIBILITY };
+
+  try {
+    const storedVisibility = window.localStorage.getItem(INDICATOR_VISIBILITY_STORAGE_KEY);
+
+    if (!storedVisibility) {
+      return visibility;
+    }
+
+    const parsedVisibility = JSON.parse(storedVisibility) as Partial<
+      Record<IndicatorId, unknown>
+    >;
+
+    INDICATOR_OPTIONS.forEach((option) => {
+      const savedValue = parsedVisibility[option.id];
+
+      if (typeof savedValue === 'boolean') {
+        visibility[option.id] = savedValue;
+      }
+    });
+  } catch {
+    return visibility;
+  }
+
+  return visibility;
+}
+
+function saveIndicatorVisibility(visibility: IndicatorVisibility) {
+  const storedVisibility = INDICATOR_OPTIONS.reduce((savedVisibility, option) => {
+    savedVisibility[option.id] = visibility[option.id];
+    return savedVisibility;
+  }, {} as IndicatorVisibility);
+
+  try {
+    window.localStorage.setItem(
+      INDICATOR_VISIBILITY_STORAGE_KEY,
+      JSON.stringify(storedVisibility),
+    );
+  } catch {
+    // Keep the chart usable when storage is unavailable.
+  }
+}
 
 const selectedSymbol = ref<MarketSymbol>('BTCUSDT');
 const selectedInterval = ref<KlineInterval>('1m');
+const enabledIndicators = reactive<IndicatorVisibility>(loadIndicatorVisibility());
+const activePaperSignal = ref<AgentSignal | null>(null);
+const lastPaperSettlement = ref<PaperTradeSettlement | null>(null);
 
 const selectedMarketName = computed(() => {
   if (selectedSymbol.value === 'XAUUSDT') {
@@ -20,6 +81,10 @@ const selectedMarketName = computed(() => {
   return `${selectedSymbol.value.replace('USDT', '')} perpetual`;
 });
 
+const enabledIndicatorCount = computed(() => {
+  return INDICATOR_OPTIONS.filter((option) => enabledIndicators[option.id]).length;
+});
+
 function handleSymbolChange(event: Event) {
   selectedSymbol.value = (event.target as HTMLSelectElement).value as MarketSymbol;
 }
@@ -27,6 +92,51 @@ function handleSymbolChange(event: Event) {
 function handleIntervalChange(event: Event) {
   selectedInterval.value = (event.target as HTMLSelectElement).value as KlineInterval;
 }
+
+function handleIndicatorChange(indicator: IndicatorId, event: Event) {
+  enabledIndicators[indicator] = (event.target as HTMLInputElement).checked;
+}
+
+function handleAgentSymbolSelect(symbol: MarketSymbol) {
+  selectedSymbol.value = symbol;
+}
+
+function handleAcceptSignal(signal: AgentSignal) {
+  activePaperSignal.value = signal;
+  lastPaperSettlement.value = null;
+  selectedSymbol.value = signal.symbol;
+}
+
+function handlePaperTradeSettled(settlement: PaperTradeSettlement) {
+  lastPaperSettlement.value = settlement;
+  activePaperSignal.value = null;
+}
+
+function handleCloseActiveSignal() {
+  if (!activePaperSignal.value) {
+    return;
+  }
+
+  const settlement = createManualSettlement(activePaperSignal.value);
+
+  if (settlement) {
+    lastPaperSettlement.value = settlement;
+  }
+
+  activePaperSignal.value = null;
+}
+
+watch(selectedInterval, () => {
+  activePaperSignal.value = null;
+});
+
+watch(
+  enabledIndicators,
+  () => {
+    saveIndicatorVisibility(enabledIndicators);
+  },
+  { deep: true },
+);
 </script>
 
 <template>
@@ -58,6 +168,27 @@ function handleIntervalChange(event: Event) {
             </option>
           </select>
         </label>
+
+        <details class="indicator-panel">
+          <summary>
+            <span>Indicators</span>
+            <span class="indicator-count">{{ enabledIndicatorCount }}/{{ INDICATOR_OPTIONS.length }}</span>
+          </summary>
+
+          <fieldset>
+            <legend class="sr-only">Indicators</legend>
+            <div class="indicator-list">
+              <label v-for="option in INDICATOR_OPTIONS" :key="option.id" class="indicator-toggle">
+                <input
+                  type="checkbox"
+                  :checked="enabledIndicators[option.id]"
+                  @change="handleIndicatorChange(option.id, $event)"
+                />
+                <span>{{ option.label }}</span>
+              </label>
+            </div>
+          </fieldset>
+        </details>
       </div>
     </header>
 
@@ -80,7 +211,23 @@ function handleIntervalChange(event: Event) {
           </dl>
         </div>
 
-        <FuturesChart :symbol="selectedSymbol" :interval="selectedInterval" />
+        <FuturesChart
+          :symbol="selectedSymbol"
+          :interval="selectedInterval"
+          :enabled-indicators="enabledIndicators"
+          :active-signal="activePaperSignal"
+          @paper-trade-settled="handlePaperTradeSettled"
+        />
+
+        <AgentSignals
+          :selected-symbol="selectedSymbol"
+          :interval="selectedInterval"
+          :active-signal="activePaperSignal"
+          :last-settlement="lastPaperSettlement"
+          @select-symbol="handleAgentSymbolSelect"
+          @accept-signal="handleAcceptSignal"
+          @close-active-signal="handleCloseActiveSignal"
+        />
       </section>
     </main>
   </div>

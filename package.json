@@ -6,7 +6,7 @@
   "packageManager": "pnpm@11.7.0",
   "scripts": {
     "dev": "vite",
-    "build": "pnpm run type-check && vite build",
+    "build": "vue-tsc --noEmit -p tsconfig.json && vite build",
     "preview": "vite preview",
     "type-check": "vue-tsc --noEmit -p tsconfig.json",
     "test:unit": "vitest --run"

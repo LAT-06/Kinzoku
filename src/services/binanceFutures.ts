@@ -11,6 +11,11 @@ export type KlineInterval = (typeof KLINE_INTERVALS)[number];
 
 export type StreamStatus = 'connecting' | 'open' | 'closed' | 'reconnecting' | 'error';
 
+export interface MarketCandle extends CandlestickData {
+  time: UTCTimestamp;
+  volume: number;
+}
+
 export type BinanceFuturesKline = [
   number,
   string,
@@ -69,17 +74,18 @@ export function buildFuturesKlineStreamUrl(symbol: MarketSymbol, interval: Kline
   return `${FUTURES_WS_BASE_URL}/${symbol.toLowerCase()}@kline_${interval}`;
 }
 
-export function mapFuturesKline(kline: BinanceFuturesKline): CandlestickData {
+export function mapFuturesKline(kline: BinanceFuturesKline): MarketCandle {
   return {
     time: (kline[0] / 1000) as UTCTimestamp,
     open: Number(kline[1]),
     high: Number(kline[2]),
     low: Number(kline[3]),
     close: Number(kline[4]),
+    volume: Number(kline[5]),
   };
 }
 
-export function mapFuturesWsMessageToCandle(message: BinanceFuturesKlineWsMessage): CandlestickData {
+export function mapFuturesWsMessageToCandle(message: BinanceFuturesKlineWsMessage): MarketCandle {
   const { k } = message;
 
   return {
@@ -88,6 +94,7 @@ export function mapFuturesWsMessageToCandle(message: BinanceFuturesKlineWsMessag
     high: Number(k.h),
     low: Number(k.l),
     close: Number(k.c),
+    volume: Number(k.v),
   };
 }
 
@@ -95,7 +102,7 @@ export async function fetchFuturesKlines(
   symbol: MarketSymbol,
   interval: KlineInterval,
   limit = 500,
-): Promise<CandlestickData[]> {
+): Promise<MarketCandle[]> {
   const response = await fetch(buildFuturesKlinesUrl(symbol, interval, limit));
 
   if (!response.ok) {
@@ -109,7 +116,7 @@ export async function fetchFuturesKlines(
 export function connectFuturesKlineStream(
   symbol: MarketSymbol,
   interval: KlineInterval,
-  onCandle: (candle: CandlestickData) => void,
+  onCandle: (candle: MarketCandle) => void,
   onStatus: (status: StreamStatus) => void,
 ): () => void {
   let ws: WebSocket | null = null;

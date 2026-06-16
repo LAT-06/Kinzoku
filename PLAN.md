@@ -1,46 +1,59 @@
-# Kinzoku V1: Futures Realtime Chart Dashboard
+# Kinzoku V2: Chart Indicators + Toggle Panel
 
 ## Summary
-Build a frontend-only Vue 3 + TypeScript app using `pnpm`, `Vite`, and `lightweight-charts`. Data source switches from Binance Spot to Binance USD-M Futures.
-
-Verified on June 15, 2026: Binance Futures `XAUUSDT` returns valid kline data via `GET /fapi/v1/klines`, so V1 can include `XAUUSDT` alongside crypto futures without a separate forex provider.
+Add a full technical indicator set to the existing Binance USD-M Futures chart. The chart keeps candlesticks as the main pane, overlays trend indicators on price, and shows Volume/RSI/MACD as stacked panes below. A single `Indicators` checkbox panel controls hide/show for each indicator.
 
 ## Key Changes
-- Use Binance USD-M Futures public market data:
-  - REST history: `https://fapi.binance.com/fapi/v1/klines`
-  - Realtime stream: `wss://fstream.binance.com/market/ws/<symbol>@kline_<interval>`
-- Add chart controls:
-  - Symbols: `BTCUSDT`, `ETHUSDT`, `BNBUSDT`, `SOLUSDT`, `XAUUSDT`
-  - Intervals: `1m`, `5m`, `15m`, `1h`, `4h`, `1d`
-- Scaffold manually in existing repo to avoid overwriting `AGENTS.md`, `.env`, `.agents`, and `PLAN.md`.
-- Install `pnpm` first because local machine currently has no `pnpm` or `corepack`.
-  - Implementation command: `npm install -g pnpm`
-  - Then use `pnpm install`, `pnpm dev`, `pnpm build`, `pnpm test:unit`.
+- Add indicator data support:
+  - Extend futures candle mapping to keep `volume` from REST/WebSocket payloads.
+  - Store current candle history in `FuturesChart` so every realtime update can refresh indicator series.
+- Add full technical indicator set:
+  - Price overlays: `EMA 20`, `EMA 50`, `EMA 200`, `Bollinger Bands 20/2`.
+  - Lower panes: `Volume`, `RSI 14`, `MACD 12/26/9`.
+  - Default: all enabled, because user selected full technical mode.
+- Add `Indicators` UI:
+  - Checkbox group in the existing chart controls area.
+  - Each checkbox toggles one indicator independently.
+  - Pane order when enabled: Volume, RSI, MACD.
+- Keep implementation local and simple:
+  - No new charting/TA dependency.
+  - Add a small `src/services/indicators.ts` module with tested calculation helpers.
+  - Use Lightweight Charts `LineSeries` and `HistogramSeries`; use pane indexes for lower indicators.
 
 ## Interfaces
-- `src/services/binanceFutures.ts`
-  - `fetchFuturesKlines(symbol, interval, limit = 500)`
-  - `connectFuturesKlineStream(symbol, interval, onCandle, onStatus)`
-  - Maps Binance millisecond timestamps to Lightweight Charts second timestamps.
-- Types:
-  - `MarketSymbol = 'BTCUSDT' | 'ETHUSDT' | 'BNBUSDT' | 'SOLUSDT' | 'XAUUSDT'`
-  - `KlineInterval = '1m' | '5m' | '15m' | '1h' | '4h' | '1d'`
-  - `BinanceFuturesKline`, `BinanceFuturesKlineWsMessage`
+- Add `MarketCandle` type with `time`, `open`, `high`, `low`, `close`, `volume`.
+- Add `IndicatorId` union:
+  - `ema20 | ema50 | ema200 | bollinger | volume | rsi | macd`
+- Add `IndicatorVisibility = Record<IndicatorId, boolean>`.
+- `App.vue` owns `enabledIndicators` and passes it to `FuturesChart`.
+- `FuturesChart` syncs enabled indicators after history load, symbol/interval change, and realtime candle update.
+
+## Calculation Rules
+- EMA uses multiplier `2 / (period + 1)` and starts after an SMA seed for the first full period.
+- Bollinger Bands use 20-period rolling SMA with upper/lower bands at `mean +/- 2 * standardDeviation`.
+- RSI uses Wilder smoothing with period 14; values before enough data are omitted.
+- MACD uses EMA 12, EMA 26, signal EMA 9, and histogram `macd - signal`.
+- Volume histogram bars are green when `close >= open`, red otherwise.
 
 ## Test Plan
-- Unit test futures kline mapper with BTC and XAU sample payloads.
-- Unit test REST/WebSocket URL builders for lowercase stream names.
+- Extend existing Binance mapper tests to assert volume is preserved for REST and WebSocket candles.
+- Add unit tests for:
+  - EMA period seeding and output shape.
+  - Bollinger upper/middle/lower values.
+  - RSI rising/falling sample behavior.
+  - MACD line/signal/histogram alignment.
+  - Volume histogram color selection.
 - Run:
-  - `pnpm run type-check`
   - `pnpm run test:unit`
+  - `pnpm run type-check`
   - `pnpm run build`
 - Manual check:
-  - Start dev server with `pnpm dev -- --host 127.0.0.1`
-  - Switch BTC/ETH/XAU and verify chart reloads history.
-  - Switch intervals and verify WebSocket reconnects cleanly.
-  - Confirm no console errors and realtime candle updates.
+  - Toggle each indicator on/off.
+  - Switch BTC/ETH/XAU and intervals.
+  - Confirm realtime candle updates also update enabled indicators.
+  - Confirm stacked panes disappear when their indicator is disabled.
 
 ## Assumptions
-- V1 is read-only market data, not trading.
-- No Binance API key is needed because only public futures market endpoints are used.
-- `XAUUSDT` means Binance USD-M Futures `XAUUSDT`, not spot and not a separate forex broker symbol.
+- Toggle state does not persist after refresh in this version.
+- Indicator formulas are for chart visualization only, not trading signals or financial advice.
+- Existing futures data source, symbol list, interval list, and read-only scope stay unchanged.
