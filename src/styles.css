@@ -32,7 +32,8 @@ body {
 }
 
 button,
-select {
+select,
+input {
   font: inherit;
 }
 
@@ -121,6 +122,104 @@ select {
 }
 
 .control-field select:focus {
+  outline: 2px solid color-mix(in srgb, var(--accent-2), transparent 35%);
+  outline-offset: 2px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.indicator-panel {
+  position: relative;
+  min-width: 11rem;
+  color: var(--text);
+}
+
+.indicator-panel summary {
+  min-height: 2.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  cursor: pointer;
+  list-style: none;
+  font-size: 0.88rem;
+}
+
+.indicator-panel summary::-webkit-details-marker {
+  display: none;
+}
+
+.indicator-panel summary::after {
+  content: 'v';
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.indicator-panel[open] summary::after {
+  transform: rotate(180deg);
+}
+
+.indicator-panel summary:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent-2), transparent 35%);
+  outline-offset: 2px;
+}
+
+.indicator-count {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.indicator-panel fieldset {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 20;
+  width: min(28rem, calc(100vw - 2rem));
+  margin: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface-strong);
+}
+
+.indicator-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem 0.75rem;
+}
+
+.indicator-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 1.6rem;
+  color: var(--text);
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.indicator-toggle input {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  accent-color: var(--accent-2);
+}
+
+.indicator-toggle input:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--accent-2), transparent 35%);
   outline-offset: 2px;
 }
@@ -254,6 +353,24 @@ select {
   .control-field {
     min-width: min(100%, 10rem);
     flex: 1;
+  }
+
+  .indicator-panel {
+    width: 100%;
+  }
+
+  .indicator-panel fieldset {
+    position: static;
+    width: 100%;
+    margin-top: 0.5rem;
+  }
+
+  .indicator-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .indicator-toggle {
+    white-space: normal;
   }
 
   .market-meta {

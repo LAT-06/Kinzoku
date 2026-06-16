@@ -44,6 +44,7 @@ describe('binance futures market data', () => {
       high: 4361.6,
       low: 4359.47,
       close: 4361.19,
+      volume: 298.006,
     });
   });
 
@@ -79,6 +80,7 @@ describe('binance futures market data', () => {
       high: 66880,
       low: 66801.5,
       close: 66831.9,
+      volume: 160.817,
     });
   });
 });

@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { CandlestickSeries, ColorType, createChart } from 'lightweight-charts';
 import type { IChartApi, ISeriesApi } from 'lightweight-charts';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
@@ -7,13 +6,21 @@ import {
   connectFuturesKlineStream,
   fetchFuturesKlines,
   type KlineInterval,
+  type MarketCandle,
   type MarketSymbol,
   type StreamStatus,
 } from '../services/binanceFutures';
+import {
+  createChartIndicatorController,
+  type ChartIndicatorController,
+} from '../services/chartIndicatorSeries';
+import { addFuturesCandleSeries, createKinzokuChart } from '../services/chartFactory';
+import type { IndicatorVisibility } from '../services/indicators';
 
 const props = defineProps<{
   symbol: MarketSymbol;
   interval: KlineInterval;
+  enabledIndicators: IndicatorVisibility;
 }>();
 
 const chartContainer = ref<HTMLDivElement | null>(null);
@@ -23,7 +30,9 @@ const streamStatus = ref<StreamStatus>('closed');
 
 let chart: IChartApi | undefined;
 let candleSeries: ISeriesApi<'Candlestick'> | undefined;
+let indicatorController: ChartIndicatorController | undefined;
 let cleanupStream: (() => void) | undefined;
+let candles: MarketCandle[] = [];
 let loadToken = 0;
 
 const statusLabel = computed(() => {
@@ -37,6 +46,31 @@ const statusLabel = computed(() => {
 
   return labels[streamStatus.value];
 });
+
+function rebuildIndicators() {
+  indicatorController?.rebuild(props.enabledIndicators);
+  indicatorController?.update(candles);
+}
+
+function updateCandleHistory(candle: MarketCandle) {
+  const lastCandle = candles[candles.length - 1];
+
+  if (!lastCandle || candle.time > lastCandle.time) {
+    candles.push(candle);
+    return;
+  }
+
+  if (candle.time === lastCandle.time) {
+    candles[candles.length - 1] = candle;
+    return;
+  }
+
+  const existingIndex = candles.findIndex((item) => item.time === candle.time);
+
+  if (existingIndex >= 0) {
+    candles[existingIndex] = candle;
+  }
+}
 
 async function loadMarketData() {
   if (!candleSeries) {
@@ -55,14 +89,18 @@ async function loadMarketData() {
       return;
     }
 
-    candleSeries.setData(history);
+    candles = history;
+    candleSeries.setData(candles);
+    rebuildIndicators();
     chart?.timeScale().fitContent();
 
     cleanupStream = connectFuturesKlineStream(
       props.symbol,
       props.interval,
       (candle) => {
+        updateCandleHistory(candle);
         candleSeries?.update(candle);
+        indicatorController?.update(candles);
       },
       (status) => {
         streamStatus.value = status;
@@ -75,6 +113,9 @@ async function loadMarketData() {
 
     streamStatus.value = 'error';
     errorMessage.value = error instanceof Error ? error.message : 'Unable to load market data';
+    candles = [];
+    candleSeries.setData([]);
+    indicatorController?.update(candles);
   } finally {
     if (currentToken === loadToken) {
       isLoading.value = false;
@@ -87,42 +128,9 @@ onMounted(() => {
     return;
   }
 
-  chart = createChart(chartContainer.value, {
-    autoSize: true,
-    layout: {
-      background: { type: ColorType.Solid, color: '#111418' },
-      textColor: '#d6dde6',
-      fontFamily: 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-    },
-    grid: {
-      vertLines: { color: '#202833' },
-      horzLines: { color: '#202833' },
-    },
-    crosshair: {
-      mode: 0,
-      vertLine: { color: '#6f7d8f', labelBackgroundColor: '#2a3340' },
-      horzLine: { color: '#6f7d8f', labelBackgroundColor: '#2a3340' },
-    },
-    rightPriceScale: {
-      borderColor: '#2a3340',
-    },
-    timeScale: {
-      borderColor: '#2a3340',
-      timeVisible: true,
-      secondsVisible: false,
-      rightOffset: 10,
-    },
-  });
-
-  candleSeries = chart.addSeries(CandlestickSeries, {
-    upColor: '#16a085',
-    downColor: '#e85d64',
-    borderUpColor: '#16a085',
-    borderDownColor: '#e85d64',
-    wickUpColor: '#16a085',
-    wickDownColor: '#e85d64',
-  });
-
+  chart = createKinzokuChart(chartContainer.value);
+  candleSeries = addFuturesCandleSeries(chart);
+  indicatorController = createChartIndicatorController(chart, candleSeries);
   void loadMarketData();
 });
 
@@ -133,9 +141,18 @@ watch(
   },
 );
 
+watch(
+  () => props.enabledIndicators,
+  () => {
+    rebuildIndicators();
+  },
+  { deep: true },
+);
+
 onBeforeUnmount(() => {
   loadToken += 1;
   cleanupStream?.();
+  indicatorController?.clear();
   chart?.remove();
 });
 </script>
